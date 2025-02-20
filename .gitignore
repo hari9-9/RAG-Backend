@@ -1,0 +1,58 @@
+# Byte-compiled / optimized / package files
+__pycache__/
+*.py[cod]
+*.so
+*.pyd
+*.pyo
+
+# Virtual environment
+venv/
+.venv/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Logs and temp files
+logs/
+*.log
+*.out
+*.err
+*.pid
+*.swp
+.DS_Store
+
+# Local environment files
+.env
+.env.local
+.env.production
+config.yaml
+
+# FAISS and Vector DB storage
+models/vector_store/
+faiss_index/
+chroma_db/
+
+# Python cache
+*.cache/
+*.pytest_cache/
+.cache/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Ignore data and large files (Optional)
+data/*.pdf
+data/*.csv
+data/*.json
+
+# Ignore built frontend files (if using React/Vue)
+frontend/node_modules/
+frontend/build/
+frontend/dist/
+
+# VSCode & JetBrains IDE specific
+.vscode/
+.idea/
+*.iml
+
+# MacOS specific
+*.DS_Store
