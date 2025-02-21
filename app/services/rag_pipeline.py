@@ -4,6 +4,7 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from app.services.pdf_processing import load_reports
+from rank_bm25 import BM25Okapi
 
 # Load embedding model
 embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
@@ -30,8 +31,8 @@ def process_documents():
 
     full_text = "\n".join(reports.values())
 
-    # Split text into smaller chunks
-    splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+    # Improved chunking strategy
+    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     chunks = splitter.split_text(full_text)
 
     if not chunks:
@@ -41,8 +42,11 @@ def process_documents():
     # Generate embeddings
     embeddings_np = np.array(embedding_model.encode(chunks, convert_to_tensor=False), dtype=np.float32)
 
-    # Initialize FAISS index and store embeddings
-    index = faiss.IndexFlatL2(embeddings_np.shape[1])
+    # Normalize embeddings for better FAISS performance
+    embeddings_np /= np.linalg.norm(embeddings_np, axis=1, keepdims=True)
+
+    # Initialize FAISS index (use HNSW for better recall)
+    index = faiss.IndexHNSWFlat(embeddings_np.shape[1], 32)
     index.add(embeddings_np)
 
     # Save FAISS index
@@ -67,7 +71,7 @@ def load_faiss_index():
 
 def retrieve_relevant_chunks(query, k=3):
     """
-    Retrieve the most relevant document chunks for a given query using FAISS.
+    Retrieve the most relevant document chunks for a given query using FAISS + BM25 Hybrid Search.
     """
     # Load FAISS index
     index = load_faiss_index()
@@ -81,19 +85,38 @@ def retrieve_relevant_chunks(query, k=3):
     # Convert query into embedding
     query_embedding_np = np.array([embedding_model.encode(query, convert_to_tensor=False)], dtype=np.float32)
 
-    # Search for the most relevant chunks
+    # FAISS dense retrieval
     distances, indices = index.search(query_embedding_np, k)
 
-    # Load extracted text to return the actual text chunks
+    # Load extracted text
     reports = load_reports()
     if not reports:
         return []
 
     full_text = "\n".join(reports.values())
-    splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     chunks = splitter.split_text(full_text)
 
+    # BM25 sparse retrieval
+    tokenized_chunks = [chunk.split(" ") for chunk in chunks]
+    bm25 = BM25Okapi(tokenized_chunks)
+    bm25_scores = bm25.get_scores(query.split())
+    top_bm25_indices = np.argsort(bm25_scores)[::-1][:k]
+
+    # Merge FAISS and BM25 results
+    combined_indices = list(set(indices[0]) | set(top_bm25_indices))
+
     # Retrieve relevant text chunks (ensures indices are valid)
-    retrieved_texts = [chunks[i] for i in indices[0] if i < len(chunks)]
+    retrieved_texts = expand_context(combined_indices, chunks, window=1)
+
 
     return retrieved_texts
+
+
+def expand_context(retrieved_indices, chunks, window=1):
+    expanded_texts = []
+    for idx in retrieved_indices:
+        start = max(0, idx - window)
+        end = min(len(chunks), idx + window + 1)
+        expanded_texts.append("\n".join(chunks[start:end]))
+    return expanded_texts

@@ -43,10 +43,11 @@ def call_huggingface_api(payload, max_retries=3, retry_delay=5):
 
     raise HTTPException(status_code=500, detail="Hugging Face API failed after multiple retries.")
 
+
 @router.get("/")
 async def query_insights(query: str):
     """
-    Accepts a user query and returns structured insights from the two reports using Hugging Face's Inference API.
+    Accepts a user query and returns structured insights from the reports using Hugging Face's Inference API.
     """
     if not query or not query.strip():
         raise HTTPException(status_code=400, detail="Query parameter cannot be empty.")
@@ -56,23 +57,19 @@ async def query_insights(query: str):
     if not retrieved_texts:
         raise HTTPException(status_code=404, detail="No relevant information found in the reports.")
 
+
     # Prepare payload for Hugging Face API
     payload = {
         "inputs": f"Analyze the following report sections and answer: {query}\n\n{retrieved_texts}",
-        "parameters": {"max_length": 500, "do_sample": True}
+        "parameters": {"max_length": 100, "do_sample": True}
     }
 
     # Call Hugging Face API with retries
     result = call_huggingface_api(payload)
 
-    # Ensure response is formatted correctly
-    if isinstance(result, list) and "generated_text" in result[0]:
-        response_text = result[0]["generated_text"]
-    else:
-        response_text = "No valid response generated."
-
     return {
         "query": query,
-        "response": response_text,
+        "response": result[0]["generated_text"] if isinstance(result, list) and "generated_text" in result[0] else "No valid response generated.",
         "sources": retrieved_texts
     }
+
