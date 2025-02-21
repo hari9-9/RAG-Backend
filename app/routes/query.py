@@ -68,8 +68,6 @@ async def query_insights(query: str):
         "parameters": {"max_length": 200, "temperature": 0.1}  # Prevent hallucination
     }
 
-    print("Payload Sent to LLM:\n", payload)
-
 
     # Call Hugging Face API with retries
     result = call_huggingface_api(payload)

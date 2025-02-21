@@ -61,7 +61,7 @@ def load_faiss_index():
     Load FAISS index from disk if available.
     """
     if not os.path.exists(FAISS_INDEX_PATH):
-        print("⚠️ Warning: FAISS index not found.")
+        print("Warning: FAISS index not found.")
         return None
     try:
         return faiss.read_index(FAISS_INDEX_PATH)
@@ -76,7 +76,7 @@ def retrieve_relevant_chunks(query, k=3):
     # Load FAISS index
     index = load_faiss_index()
     if index is None:
-        print("⚠️ Vector store is empty, initializing FAISS now...")
+        print("Vector store is empty, initializing FAISS now...")
         process_documents()
         index = load_faiss_index()
         if index is None:
