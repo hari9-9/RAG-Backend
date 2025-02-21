@@ -15,7 +15,10 @@ if not HUGGING_FACE_KEY:
 router = APIRouter(prefix="/query", tags=["Query"])
 
 # Hugging Face API URL (Change model if needed)
-HF_API_URL = "https://api-inference.huggingface.co/models/tiiuae/falcon-7b-instruct"
+HF_API_URL = "https://api-inference.huggingface.co/models/HuggingFaceH4/zephyr-7b-beta"
+
+
+
 
 # Headers for authentication
 HEADERS = {
@@ -59,17 +62,28 @@ async def query_insights(query: str):
 
 
     # Prepare payload for Hugging Face API
+    formatted_text = "\n\n".join(retrieved_texts)
     payload = {
-        "inputs": f"Analyze the following report sections and answer: {query}\n\n{retrieved_texts}",
-        "parameters": {"max_length": 100, "do_sample": True}
+        "inputs": f"Based on the following information, answer the question concisely.\n\nContext:\n{formatted_text}\n\nQuestion: {query}\n\nAnswer:",
+        "parameters": {"max_length": 200, "temperature": 0.1}  # Prevent hallucination
     }
+
+    print("Payload Sent to LLM:\n", payload)
+
 
     # Call Hugging Face API with retries
     result = call_huggingface_api(payload)
-
+    raw_response = result[0]["generated_text"] if isinstance(result, list) and "generated_text" in result[0] else "No valid response."
+    cleaned_response = clean_generated_response(raw_response)
     return {
         "query": query,
-        "response": result[0]["generated_text"] if isinstance(result, list) and "generated_text" in result[0] else "No valid response generated.",
+        "response": cleaned_response,
         "sources": retrieved_texts
     }
 
+
+
+def clean_generated_response(text):
+    # Remove unwanted words, unnecessary formatting
+    text = text.replace("\n", " ").strip()
+    return text

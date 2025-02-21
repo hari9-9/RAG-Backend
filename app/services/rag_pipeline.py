@@ -46,7 +46,7 @@ def process_documents():
     embeddings_np /= np.linalg.norm(embeddings_np, axis=1, keepdims=True)
 
     # Initialize FAISS index (use HNSW for better recall)
-    index = faiss.IndexHNSWFlat(embeddings_np.shape[1], 32)
+    index = faiss.IndexFlatIP(embeddings_np.shape[1])
     index.add(embeddings_np)
 
     # Save FAISS index
@@ -86,7 +86,7 @@ def retrieve_relevant_chunks(query, k=3):
     query_embedding_np = np.array([embedding_model.encode(query, convert_to_tensor=False)], dtype=np.float32)
 
     # FAISS dense retrieval
-    distances, indices = index.search(query_embedding_np, k)
+    distances, indices = index.search(query_embedding_np, k*2)
 
     # Load extracted text
     reports = load_reports()
@@ -100,14 +100,16 @@ def retrieve_relevant_chunks(query, k=3):
     # BM25 sparse retrieval
     tokenized_chunks = [chunk.split(" ") for chunk in chunks]
     bm25 = BM25Okapi(tokenized_chunks)
-    bm25_scores = bm25.get_scores(query.split())
-    top_bm25_indices = np.argsort(bm25_scores)[::-1][:k]
+    faiss_chunks = [chunks[i] for i in indices[0]]
+    faiss_scores = [bm25.get_scores(query.split())[i] for i in indices[0]]
+
 
     # Merge FAISS and BM25 results
-    combined_indices = list(set(indices[0]) | set(top_bm25_indices))
-
-    # Retrieve relevant text chunks (ensures indices are valid)
-    retrieved_texts = expand_context(combined_indices, chunks, window=1)
+     # Sort FAISS results by BM25 relevance
+    ranked_indices = [x for _, x in sorted(zip(faiss_scores, indices[0]), reverse=True)][:k]
+    
+    # Retrieve relevant text chunks
+    retrieved_texts = [chunks[i] for i in ranked_indices]
 
 
     return retrieved_texts
