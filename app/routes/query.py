@@ -75,9 +75,10 @@ async def query_insights(query: str):
     result = call_huggingface_api(payload)
     raw_response = result[0]["generated_text"] if isinstance(result, list) and "generated_text" in result[0] else "No valid response."
     cleaned_response = clean_generated_response(raw_response)
+    answer = extract_clean_answer(cleaned_response)
     return {
         "query": query,
-        "response": cleaned_response,
+        "response": answer,
         "sources": retrieved_texts
     }
 
@@ -87,3 +88,12 @@ def clean_generated_response(text):
     # Remove unwanted words, unnecessary formatting
     text = text.replace("\n", " ").strip()
     return text
+
+def extract_clean_answer(raw_response):
+    """
+    Extracts only the answer from the LLM-generated response.
+    Removes unnecessary context repetition.
+    """
+    if "Answer:" in raw_response:
+        return raw_response.split("Answer:")[-1].strip()
+    return raw_response.strip()  # If no "Answer:", return as-is
