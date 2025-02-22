@@ -69,7 +69,7 @@ def load_faiss_index():
         print(f"Error loading FAISS index: {e}")
         return None
 
-def retrieve_relevant_chunks(query, k=3):
+def retrieve_relevant_chunks(query, k=5):
     """
     Retrieve the most relevant document chunks for a given query using FAISS + BM25 Hybrid Search.
     """
