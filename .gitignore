@@ -56,3 +56,4 @@ frontend/dist/
 
 # MacOS specific
 *.DS_Store
+.vercel
