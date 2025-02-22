@@ -34,8 +34,8 @@ def load_reports():
     Handles missing reports safely.
     """
     reports = {
-        "report_1": extract_text_from_pdf("2023-conocophillips-aim-presentation.pdf"),
-        "report_2": extract_text_from_pdf("2024-conocophillips-proxy-statement.pdf")
+        "2023-conocophillips-aim-presentation.pdf": extract_text_from_pdf("2023-conocophillips-aim-presentation.pdf"),
+        "2024-conocophillips-proxy-statement.pdf": extract_text_from_pdf("2024-conocophillips-proxy-statement.pdf")
     }
 
     # Remove reports that failed to load
