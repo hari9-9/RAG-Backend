@@ -7,25 +7,26 @@ DATA_DIR = os.path.join(BASE_DIR, "data")  # Points to 'app/data/'
 
 def extract_text_from_pdf(pdf_filename):
     """
-    Extracts text from a given PDF file.
-    Handles missing files gracefully.
+    Extracts text from a given PDF file along with page numbers.
     """
     pdf_path = os.path.join(DATA_DIR, pdf_filename)
-
-    # Check if file exists
+    
     if not os.path.exists(pdf_path):
         print(f"Warning: File '{pdf_filename}' not found in {DATA_DIR}. Skipping.")
         return None
-
-    text = []
+    
+    extracted_text = []
     try:
         with pdfplumber.open(pdf_path) as pdf:
-            text = [page.extract_text() for page in pdf.pages if page.extract_text()]
+            for page_num, page in enumerate(pdf.pages, start=1):
+                text = page.extract_text()
+                if text:
+                    extracted_text.append((text, page_num))  # Store text with page number
     except Exception as e:
         print(f"Error reading {pdf_filename}: {e}")
         return None
-
-    return "\n".join(text) if text else None  # Return None if extraction failed
+    
+    return extracted_text if extracted_text else None
 
 def load_reports():
     """
@@ -33,8 +34,8 @@ def load_reports():
     Handles missing reports safely.
     """
     reports = {
-        "report_1": extract_text_from_pdf("2023-conocophillips-aim-presentation.pdf"),
-        "report_2": extract_text_from_pdf("2024-conocophillips-proxy-statement.pdf")
+        "2023-conocophillips-aim-presentation.pdf": extract_text_from_pdf("2023-conocophillips-aim-presentation.pdf"),
+        "2024-conocophillips-proxy-statement.pdf": extract_text_from_pdf("2024-conocophillips-proxy-statement.pdf")
     }
 
     # Remove reports that failed to load

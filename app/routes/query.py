@@ -22,8 +22,7 @@ HF_API_URL = "https://api-inference.huggingface.co/models/HuggingFaceH4/zephyr-7
 
 # Headers for authentication
 HEADERS = {
-    "Authorization": f"Bearer {HUGGING_FACE_KEY}",
-    "X-Use-Cache": "0"  # Forces fresh responses
+    "Authorization": f"Bearer {HUGGING_FACE_KEY}"
 }
 
 def call_huggingface_api(payload, max_retries=3, retry_delay=5):
@@ -59,26 +58,27 @@ async def query_insights(query: str):
 
     if not retrieved_texts:
         raise HTTPException(status_code=404, detail="No relevant information found in the reports.")
-
+    # Extract only the text from retrieved sources
+    formatted_text = "\n\n".join([source["text"] for source in retrieved_texts])
 
     # Prepare payload for Hugging Face API
-    formatted_text = "\n\n".join(retrieved_texts)
     payload = {
         "inputs": f"Based on the following information, answer the question concisely.\n\nContext:\n{formatted_text}\n\nQuestion: {query}\n\nAnswer:",
         "parameters": {"max_length": 200, "temperature": 0.1}  # Prevent hallucination
     }
-
-
+    print(payload)
     # Call Hugging Face API with retries
     result = call_huggingface_api(payload)
     raw_response = result[0]["generated_text"] if isinstance(result, list) and "generated_text" in result[0] else "No valid response."
     cleaned_response = clean_generated_response(raw_response)
     answer = extract_clean_answer(cleaned_response)
+    print(answer)
     return {
         "query": query,
         "response": answer,
-        "sources": retrieved_texts
+        "sources": retrieved_texts  # This now correctly includes text, source filename, and page number
     }
+
 
 
 
