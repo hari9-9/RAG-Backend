@@ -15,7 +15,24 @@ FAISS_INDEX_PATH = os.path.join(FAISS_INDEX_DIR, "vector_store")
 
 def process_documents():
     """
-    Load, split, and store reports in FAISS for retrieval with metadata.
+    Loads reports, splits them into smaller text chunks, and indexes them in FAISS for efficient retrieval.
+
+    - Reports are loaded using `load_reports()`, returning a dictionary with filenames as keys and lists of 
+      (text, page_number) tuples as values.
+    - The text is split into smaller chunks using `RecursiveCharacterTextSplitter`.
+    - Embeddings for the text chunks are computed using `SentenceTransformer` and stored in a FAISS index.
+    - The FAISS index is then saved to disk for future retrieval.
+
+    Warnings:
+        - If no reports are found, indexing is skipped.
+        - If no text is extracted, indexing is skipped.
+        - Errors during FAISS index writing are caught and printed.
+
+    Global Variables:
+        vector_store (list): Stores processed chunks with metadata for retrieval.
+
+    Returns:
+        None
     """
     global vector_store
 
@@ -56,7 +73,14 @@ def process_documents():
 
 def load_faiss_index():
     """
-    Load FAISS index from disk if available.
+    Loads the FAISS index from disk if available.
+
+    Returns:
+        faiss.Index or None: The loaded FAISS index if available, otherwise None.
+    
+    Warnings:
+        - If the FAISS index file does not exist, a warning is printed.
+        - Errors during FAISS index loading are caught and printed.
     """
     if not os.path.exists(FAISS_INDEX_PATH):
         print("Warning: FAISS index not found.")
@@ -69,7 +93,28 @@ def load_faiss_index():
 
 def retrieve_relevant_chunks(query, k=5):
     """
-    Retrieve the most relevant document chunks for a given query using FAISS + BM25 Hybrid Search.
+    Retrieves the most relevant document chunks for a given query using a hybrid FAISS + BM25 search.
+
+    Steps:
+    1. Loads the FAISS index from disk.
+    2. Computes the query embedding using `SentenceTransformer` and searches for the top `2k` matches in FAISS.
+    3. Loads the original reports and re-splits them using `RecursiveCharacterTextSplitter`.
+    4. Uses BM25 to re-rank the FAISS results based on token similarity.
+    5. Returns the top `k` ranked results.
+
+    Args:
+        query (str): The user query to search for relevant text chunks.
+        k (int, optional): Number of relevant chunks to return. Defaults to 5.
+
+    Returns:
+        list: A list of dictionaries containing:
+            - 'text' (str): The retrieved text chunk.
+            - 'source' (str): The filename of the original document.
+            - 'page' (int): The page number where the text chunk appears.
+
+    Warnings:
+        - If no FAISS index is found, it attempts to process documents.
+        - If no reports are available, an empty list is returned.
     """
     index = load_faiss_index()
     if index is None:
@@ -104,9 +149,21 @@ def retrieve_relevant_chunks(query, k=5):
     
     return retrieved_texts
 
-
-
 def expand_context(retrieved_indices, chunks, window=1):
+    """
+    Expands retrieved text chunks by including neighboring chunks for additional context.
+
+    Args:
+        retrieved_indices (list): List of indices corresponding to retrieved text chunks.
+        chunks (list): The full list of text chunks.
+        window (int, optional): The number of chunks to include before and after each retrieved index. Defaults to 1.
+
+    Returns:
+        list: A list of expanded text strings combining neighboring chunks.
+    
+    Example:
+        If `window=1` and index 5 is retrieved, chunks 4, 5, and 6 will be included in the result.
+    """
     expanded_texts = []
     for idx in retrieved_indices:
         start = max(0, idx - window)

@@ -1,13 +1,37 @@
 import pdfplumber
 import os
 
-# Ensure the correct path to 'data/' folder
+# Ensure the correct path to the 'data/' folder
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))  # Get the 'app/' directory
 DATA_DIR = os.path.join(BASE_DIR, "data")  # Points to 'app/data/'
 
 def extract_text_from_pdf(pdf_filename):
     """
     Extracts text from a given PDF file along with page numbers.
+
+    - Opens the PDF using `pdfplumber`.
+    - Iterates through each page, extracting the text if available.
+    - Returns a list of tuples containing the extracted text and corresponding page numbers.
+
+    Args:
+        pdf_filename (str): The name of the PDF file to be processed.
+
+    Returns:
+        list of tuples or None:
+            - A list where each tuple contains:
+                - text (str): Extracted text from a page.
+                - page_num (int): Page number where the text was found.
+            - Returns `None` if the file is missing or text extraction fails.
+
+    Warnings:
+        - Prints a warning if the specified PDF file is not found.
+        - Catches and prints any errors encountered while reading the PDF.
+
+    Example:
+        ```python
+        extract_text_from_pdf("example.pdf")
+        # Output: [("Page 1 text...", 1), ("Page 2 text...", 2), ...]
+        ```
     """
     pdf_path = os.path.join(DATA_DIR, pdf_filename)
     
@@ -30,8 +54,29 @@ def extract_text_from_pdf(pdf_filename):
 
 def load_reports():
     """
-    Extracts text from both reports and stores them for RAG processing.
-    Handles missing reports safely.
+    Loads and extracts text from predefined PDF reports for processing in a Retrieval-Augmented Generation (RAG) pipeline.
+
+    - Calls `extract_text_from_pdf()` for each predefined report.
+    - Filters out reports that fail to load or return `None`.
+    - Returns a dictionary containing the extracted text organized by filenames.
+
+    Returns:
+        dict:
+            - Keys: PDF filenames.
+            - Values: Lists of tuples containing extracted text and corresponding page numbers.
+
+    Warnings:
+        - If no reports are successfully loaded, a warning is printed.
+
+    Example:
+        ```python
+        load_reports()
+        # Output:
+        # {
+        #   "2023-conocophillips-aim-presentation.pdf": [("Page 1 text...", 1), ("Page 2 text...", 2)],
+        #   "2024-conocophillips-proxy-statement.pdf": [("Page 1 text...", 1), ("Page 3 text...", 3)]
+        # }
+        ```
     """
     reports = {
         "2023-conocophillips-aim-presentation.pdf": extract_text_from_pdf("2023-conocophillips-aim-presentation.pdf"),

@@ -12,22 +12,31 @@ HUGGING_FACE_KEY = os.getenv("HUGGING_FACE_KEY")
 if not HUGGING_FACE_KEY:
     raise ValueError("Missing Hugging Face API key. Please set HUGGING_FACE_KEY in your .env file.")
 
+# Create an API router for query-related endpoints
 router = APIRouter(prefix="/query", tags=["Query"])
 
-# Hugging Face API URL (Change model if needed)
+# Hugging Face API URL for inference (Change model if needed)
 HF_API_URL = "https://api-inference.huggingface.co/models/HuggingFaceH4/zephyr-7b-beta"
 
-
-
-
-# Headers for authentication
+# Headers for authentication with Hugging Face API
 HEADERS = {
     "Authorization": f"Bearer {HUGGING_FACE_KEY}"
 }
 
 def call_huggingface_api(payload, max_retries=3, retry_delay=5):
     """
-    Calls Hugging Face API with retries in case of failure.
+    Calls the Hugging Face Inference API with retry logic in case of failures.
+
+    Args:
+        payload (dict): The input payload containing the context and query for inference.
+        max_retries (int, optional): Maximum number of retries if the API request fails. Defaults to 3.
+        retry_delay (int, optional): Time in seconds to wait before retrying. Defaults to 5.
+
+    Returns:
+        dict: The JSON response from the Hugging Face API containing the generated text.
+
+    Raises:
+        HTTPException: If the API fails after multiple retries or encounters an error.
     """
     for attempt in range(max_retries):
         response = requests.post(HF_API_URL, headers=HEADERS, json=payload)
@@ -49,7 +58,27 @@ def call_huggingface_api(payload, max_retries=3, retry_delay=5):
 @router.get("/")
 async def query_insights(query: str):
     """
-    Accepts a user query and returns structured insights from the reports using Hugging Face's Inference API.
+    Handles user queries and returns relevant insights extracted from reports.
+
+    - Retrieves the most relevant text chunks from stored reports using `retrieve_relevant_chunks()`.
+    - Formats the retrieved text for input into the Hugging Face model.
+    - Calls the Hugging Face API to generate a concise answer.
+    - Cleans and extracts the relevant response before returning it.
+
+    Args:
+        query (str): The user-provided query to search relevant information.
+
+    Returns:
+        dict: A dictionary containing:
+            - "query" (str): The original user query.
+            - "response" (str): The AI-generated response based on retrieved reports.
+            - "sources" (list): List of relevant text chunks with metadata.
+
+    Raises:
+        HTTPException:
+            - 400 if the query is empty.
+            - 404 if no relevant information is found.
+            - 500 if the Hugging Face API encounters an error.
     """
     if not query or not query.strip():
         raise HTTPException(status_code=400, detail="Query parameter cannot be empty.")
@@ -58,39 +87,59 @@ async def query_insights(query: str):
 
     if not retrieved_texts:
         raise HTTPException(status_code=404, detail="No relevant information found in the reports.")
+
     # Extract only the text from retrieved sources
     formatted_text = "\n\n".join([source["text"] for source in retrieved_texts])
 
     # Prepare payload for Hugging Face API
     payload = {
         "inputs": f"Based on the following information, answer the question concisely.\n\nContext:\n{formatted_text}\n\nQuestion: {query}\n\nAnswer:",
-        "parameters": {"max_length": 200, "temperature": 0.1}  # Prevent hallucination
+        "parameters": {"max_length": 200, "temperature": 0.1}  # Low temperature to minimize hallucinations
     }
     print(payload)
+
     # Call Hugging Face API with retries
     result = call_huggingface_api(payload)
     raw_response = result[0]["generated_text"] if isinstance(result, list) and "generated_text" in result[0] else "No valid response."
+    
+    # Process the response to clean unnecessary formatting
     cleaned_response = clean_generated_response(raw_response)
     answer = extract_clean_answer(cleaned_response)
+    
     print(answer)
+
     return {
         "query": query,
         "response": answer,
-        "sources": retrieved_texts  # This now correctly includes text, source filename, and page number
+        "sources": retrieved_texts  # Includes text, source filename, and page number
     }
 
 
-
-
 def clean_generated_response(text):
-    # Remove unwanted words, unnecessary formatting
-    text = text.replace("\n", " ").strip()
-    return text
+    """
+    Cleans the generated response by removing unwanted formatting.
+
+    Args:
+        text (str): The raw text output from the Hugging Face API.
+
+    Returns:
+        str: The cleaned text with unnecessary whitespace and newlines removed.
+    """
+    return text.replace("\n", " ").strip()
+
 
 def extract_clean_answer(raw_response):
     """
-    Extracts only the answer from the LLM-generated response.
-    Removes unnecessary context repetition.
+    Extracts and returns only the answer from the model-generated response.
+
+    - If the model explicitly includes "Answer:" in its response, it extracts the text after it.
+    - Otherwise, it returns the response as-is.
+
+    Args:
+        raw_response (str): The raw generated response from the Hugging Face model.
+
+    Returns:
+        str: The extracted answer.
     """
     if "Answer:" in raw_response:
         return raw_response.split("Answer:")[-1].strip()
