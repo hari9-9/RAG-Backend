@@ -15,46 +15,44 @@ FAISS_INDEX_PATH = os.path.join(FAISS_INDEX_DIR, "vector_store")
 
 def process_documents():
     """
-    Load, split, and store reports in FAISS for retrieval.
-    Handles missing reports gracefully.
+    Load, split, and store reports in FAISS for retrieval with metadata.
     """
     global vector_store
 
-    # Ensure FAISS directory exists
     os.makedirs(FAISS_INDEX_DIR, exist_ok=True)
-
-    # Load extracted text from reports
+    
     reports = load_reports()
     if not reports:
         print("Warning: No reports available. FAISS indexing skipped.")
         return None
 
-    full_text = "\n".join(reports.values())
-
-    # Improved chunking strategy
+    chunks_with_metadata = []
+    
+    for filename, pages in reports.items():
+        for text, page_num in pages:
+            chunks_with_metadata.append((text, filename, page_num))
+    
     splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-    chunks = splitter.split_text(full_text)
-
+    chunks = [(sub_chunk, filename, page_num) for text, filename, page_num in chunks_with_metadata for sub_chunk in splitter.split_text(text)]
+    
     if not chunks:
         print("Warning: No text extracted for indexing. FAISS indexing skipped.")
         return None
-
-    # Generate embeddings
-    embeddings_np = np.array(embedding_model.encode(chunks, convert_to_tensor=False), dtype=np.float32)
-
-    # Normalize embeddings for better FAISS performance
+    
+    embeddings_np = np.array(embedding_model.encode([chunk[0] for chunk in chunks], convert_to_tensor=False), dtype=np.float32)
     embeddings_np /= np.linalg.norm(embeddings_np, axis=1, keepdims=True)
-
-    # Initialize FAISS index (use HNSW for better recall)
+    
     index = faiss.IndexFlatIP(embeddings_np.shape[1])
     index.add(embeddings_np)
-
-    # Save FAISS index
+    
     try:
         faiss.write_index(index, FAISS_INDEX_PATH)
         print("FAISS index created and saved successfully!")
     except Exception as e:
         print(f"Error saving FAISS index: {e}")
+    
+    global vector_store
+    vector_store = chunks
 
 def load_faiss_index():
     """
@@ -69,11 +67,10 @@ def load_faiss_index():
         print(f"Error loading FAISS index: {e}")
         return None
 
-def retrieve_relevant_chunks(query, k=5):
+def retrieve_relevant_chunks(query, k=2):
     """
     Retrieve the most relevant document chunks for a given query using FAISS + BM25 Hybrid Search.
     """
-    # Load FAISS index
     index = load_faiss_index()
     if index is None:
         print("Vector store is empty, initializing FAISS now...")
@@ -82,37 +79,31 @@ def retrieve_relevant_chunks(query, k=5):
         if index is None:
             return []
 
-    # Convert query into embedding
     query_embedding_np = np.array([embedding_model.encode(query, convert_to_tensor=False)], dtype=np.float32)
-
-    # FAISS dense retrieval
     distances, indices = index.search(query_embedding_np, k*2)
 
-    # Load extracted text
     reports = load_reports()
     if not reports:
         return []
 
-    full_text = "\n".join(reports.values())
-    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-    chunks = splitter.split_text(full_text)
+    chunks_with_metadata = []
+    for filename, pages in reports.items():
+        for text, page_num in pages:
+            chunks_with_metadata.append((text, filename, page_num))
 
-    # BM25 sparse retrieval
-    tokenized_chunks = [chunk.split(" ") for chunk in chunks]
+    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    chunks = [(sub_chunk, filename, page_num) for text, filename, page_num in chunks_with_metadata for sub_chunk in splitter.split_text(text)]
+    
+    tokenized_chunks = [chunk[0].split(" ") for chunk in chunks]
     bm25 = BM25Okapi(tokenized_chunks)
     faiss_chunks = [chunks[i] for i in indices[0]]
     faiss_scores = [bm25.get_scores(query.split())[i] for i in indices[0]]
-
-
-    # Merge FAISS and BM25 results
-     # Sort FAISS results by BM25 relevance
-    ranked_indices = [x for _, x in sorted(zip(faiss_scores, indices[0]), reverse=True)][:k]
     
-    # Retrieve relevant text chunks
-    retrieved_texts = [chunks[i] for i in ranked_indices]
-
-
+    ranked_indices = [x for _, x in sorted(zip(faiss_scores, indices[0]), reverse=True)][:k]
+    retrieved_texts = [{"text": chunks[i][0], "source": chunks[i][1], "page": chunks[i][2]} for i in ranked_indices]
+    
     return retrieved_texts
+
 
 
 def expand_context(retrieved_indices, chunks, window=1):
