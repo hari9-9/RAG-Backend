@@ -80,6 +80,7 @@ async def query_insights(query: str):
             - 404 if no relevant information is found.
             - 500 if the Hugging Face API encounters an error.
     """
+    print("Hit Get Method : Query")
     if not query or not query.strip():
         raise HTTPException(status_code=400, detail="Query parameter cannot be empty.")
 
@@ -96,7 +97,6 @@ async def query_insights(query: str):
         "inputs": f"Based on the following information, answer the question concisely.\n\nContext:\n{formatted_text}\n\nQuestion: {query}\n\nAnswer:",
         "parameters": {"max_length": 200, "temperature": 0.1}  # Low temperature to minimize hallucinations
     }
-    print(payload)
 
     # Call Hugging Face API with retries
     result = call_huggingface_api(payload)
@@ -106,8 +106,6 @@ async def query_insights(query: str):
     cleaned_response = clean_generated_response(raw_response)
     answer = extract_clean_answer(cleaned_response)
     
-    print(answer)
-
     return {
         "query": query,
         "response": answer,
