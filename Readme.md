@@ -2,6 +2,7 @@
 
 ## Overview
 This project is a **Retrieval-Augmented Generation (RAG) system** that allows users to analyze and compare two market research reports using AI-powered interactions. The system extracts relevant insights from the reports and generates responses to user queries while providing source citations.
+This project integrates with the [RAG FrontEnd](https://github.com/hari9-9/RAG-Frontend)
 
 ## Features
 - **Retrieval-Augmented Generation (RAG) Pipeline** for contextual AI-powered responses.
