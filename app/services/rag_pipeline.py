@@ -7,7 +7,7 @@ from app.services.pdf_processing import load_reports
 from rank_bm25 import BM25Okapi
 
 # Load embedding model
-embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+embedding_model = SentenceTransformer("paraphrase-MiniLM-L3-v2")
 
 # FAISS storage paths
 FAISS_INDEX_DIR = "models"
@@ -125,7 +125,7 @@ def retrieve_relevant_chunks(query, k=5):
             return []
 
     query_embedding_np = np.array([embedding_model.encode(query, convert_to_tensor=False)], dtype=np.float32)
-    distances, indices = index.search(query_embedding_np, k*2)
+    distances, indices = index.search(query_embedding_np, k*1)
 
     reports = load_reports()
     if not reports:
