@@ -4,6 +4,7 @@ import requests
 import os
 from dotenv import load_dotenv
 import time
+from fastapi import Request
 
 # Load environment variables
 load_dotenv()
@@ -56,7 +57,7 @@ def call_huggingface_api(payload, max_retries=3, retry_delay=5):
 
 
 @router.get("/")
-async def query_insights(query: str):
+async def query_insights(request: Request, query: str):
     """
     Handles user queries and returns relevant insights extracted from reports.
 
@@ -84,7 +85,11 @@ async def query_insights(query: str):
     if not query or not query.strip():
         raise HTTPException(status_code=400, detail="Query parameter cannot be empty.")
 
-    retrieved_texts = retrieve_relevant_chunks(query)
+    faiss_index = request.app.state.faiss_index
+    bm25_index = request.app.state.bm25_index
+    if faiss_index is None or bm25_index is None:
+        raise HTTPException(status_code=500, detail="FAISS or BM25 index not loaded.")
+    retrieved_texts = retrieve_relevant_chunks(query, faiss_index, bm25_index)
 
     if not retrieved_texts:
         raise HTTPException(status_code=404, detail="No relevant information found in the reports.")
