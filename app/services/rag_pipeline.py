@@ -13,43 +13,38 @@ embedding_model = SentenceTransformer("paraphrase-MiniLM-L3-v2")
 FAISS_INDEX_DIR = "models"
 FAISS_INDEX_PATH = os.path.join(FAISS_INDEX_DIR, "vector_store")
 
+import pickle
+import os
+
+# Define file paths for saving BM25 index and chunks
+BM25_INDEX_PATH = os.path.join(FAISS_INDEX_DIR, "bm25_index.pkl")
+CHUNKS_PATH = os.path.join(FAISS_INDEX_DIR, "chunks.pkl")
+
 def process_documents():
     global vector_store, bm25_index
 
-    # Check if FAISS index file exists
-    if os.path.exists(FAISS_INDEX_PATH):
-        print("FAISS index file found. Loading FAISS index...")
+    # Check if FAISS index, BM25 index, and chunks files already exist
+    if os.path.exists(FAISS_INDEX_PATH) and os.path.exists(BM25_INDEX_PATH) and os.path.exists(CHUNKS_PATH):
+        print("FAISS index, BM25 index, and chunks files found. Loading from disk...")
         
         # Load FAISS index
         index = faiss.read_index(FAISS_INDEX_PATH)
         print("FAISS index loaded successfully!")
         
-        # Load reports for metadata
-        reports = load_reports()
-        if not reports:
-            print("Warning: No reports available.")
-            return None
-
-        # Reconstruct chunks with metadata
-        chunks_with_metadata = []
-        for filename, pages in reports.items():
-            for text, page_num in pages:
-                chunks_with_metadata.append((text, filename, page_num))
+        # Load BM25 index
+        with open(BM25_INDEX_PATH, "rb") as f:
+            bm25_index = pickle.load(f)
+        print("BM25 index loaded successfully!")
         
-        splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-        chunks = [(sub_chunk, filename, page_num) for text, filename, page_num in chunks_with_metadata for sub_chunk in splitter.split_text(text)]
+        # Load chunks
+        with open(CHUNKS_PATH, "rb") as f:
+            vector_store = pickle.load(f)
+        print("Chunks loaded successfully!")
         
-        # Create BM25 index
-        tokenized_chunks = [chunk[0].split(" ") for chunk in chunks]
-        bm25_index = BM25Okapi(tokenized_chunks)
-        print("BM25 index created successfully!")
-        
-        global vector_store
-        vector_store = chunks
         return
 
-    # If FAISS index file doesn't exist, process documents and create it
-    print("FAISS index file not found. Creating FAISS index...")
+    # If files don't exist, process documents and create them
+    print("FAISS index, BM25 index, or chunks files not found. Processing documents...")
     os.makedirs(FAISS_INDEX_DIR, exist_ok=True)
     
     reports = load_reports()
@@ -83,6 +78,18 @@ def process_documents():
     tokenized_chunks = [chunk[0].split(" ") for chunk in chunks]
     bm25_index = BM25Okapi(tokenized_chunks)
     print("BM25 index created successfully!")
+    
+    # Save BM25 index to disk
+    with open(BM25_INDEX_PATH, "wb") as f:
+        pickle.dump(bm25_index, f)
+    print("BM25 index saved to disk!")
+    
+    # Save chunks to disk
+    with open(CHUNKS_PATH, "wb") as f:
+        pickle.dump(chunks, f)
+    print("Chunks saved to disk!")
+    
+    # Update global variables
     vector_store = chunks
 
 def load_faiss_index():
